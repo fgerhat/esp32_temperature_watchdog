@@ -1,0 +1,14 @@
+menu "Wi-Fi Configuration"
+
+    config WIFI_SSID
+        string "Wi-Fi SSID"
+
+    config WIFI_PASSWORD
+        string "Wi-Fi Password"
+
+    config WIFI_MAX_RETRY_ATTEMPTS
+        int "Maximum connection retry attempts"
+        default 3
+        range 0 999
+
+endmenu
