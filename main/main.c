@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/event_groups.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "esp_event.h"
@@ -12,9 +13,15 @@
 #define WIFI_PASSWORD               CONFIG_WIFI_PASSWORD
 #define WIFI_MAX_RETRY_ATTEMPTS     CONFIG_WIFI_MAX_RETRY_ATTEMPTS
 
+#define WIFI_CONNECTED_BIT          BIT0
+#define WIFI_FAIL_BIT               BIT1
+
 static const char* TAG_WIFI = "WiFi Module";
+static const char* TAG_APP = "Main Application Module";
 
 static int wifi_retries = 0;
+
+static EventGroupHandle_t event_group_wifi;
 
 void on_wifi_event(void* arg, esp_event_base_t base, int32_t id, void* event_data)
 {
@@ -30,12 +37,10 @@ void on_wifi_event(void* arg, esp_event_base_t base, int32_t id, void* event_dat
                 ESP_LOGW(TAG_WIFI, "WiFi connection failed, retrying (attempt %d)...", ++wifi_retries);
                 esp_wifi_connect();
             }
-            //TODO improve, maybe use event groups or semaphores
             else
             {
                 ESP_LOGE(TAG_WIFI, "Could not connect to WiFi!");
-                fflush(stdout);
-                esp_restart();
+                xEventGroupSetBits(event_group_wifi, WIFI_FAIL_BIT);
             }
             break;
     }
@@ -48,6 +53,7 @@ void on_ip_event(void* arg, esp_event_base_t base, int32_t id, void* event_data)
         case IP_EVENT_STA_GOT_IP:
             wifi_retries = 0;
             ESP_LOGI(TAG_WIFI, "Connected");
+            xEventGroupSetBits(event_group_wifi, WIFI_CONNECTED_BIT);
             break;
     }
 }
@@ -61,6 +67,15 @@ void app_main()
       ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
+
+    //create event group wifi
+    event_group_wifi = xEventGroupCreate();
+    if(event_group_wifi == NULL)
+    {
+        ESP_LOGE(TAG_APP, "Error creating WiFi event group");
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
+        abort();
+    }
 
     //initialize NETIF
     ESP_ERROR_CHECK(esp_netif_init());
@@ -85,13 +100,38 @@ void app_main()
     //register wifi and ip event handlers
     esp_event_handler_instance_t instance_wifi_handler;
     esp_event_handler_instance_t instance_ip_handler;
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &on_wifi_event, NULL, &instance_wifi_handler));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, ESP_EVENT_ANY_ID, &on_ip_event, NULL, &instance_ip_handler));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(
+        WIFI_EVENT, 
+        ESP_EVENT_ANY_ID, 
+        &on_wifi_event, 
+        NULL, 
+        &instance_wifi_handler));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(
+        IP_EVENT, 
+        ESP_EVENT_ANY_ID, 
+        &on_ip_event, 
+        NULL, 
+        &instance_ip_handler));
 
     //start wifi driver
     ESP_ERROR_CHECK(esp_wifi_start());
 
+    //wait for wifi successful connection or failure
+    EventBits_t event_bits_wifi = xEventGroupWaitBits(
+        event_group_wifi,
+        WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+        pdTRUE,
+        pdFALSE,
+        portMAX_DELAY);
 
+    if(event_bits_wifi & WIFI_FAIL_BIT)
+    {
+        ESP_LOGE(TAG_APP, "No WiFi connection");
+    }
+    else if(event_bits_wifi & WIFI_CONNECTED_BIT)
+    {
+        ESP_LOGI(TAG_APP, "Connected to WiFi");
+    }
 
     printf("Hello world!\n");
 
