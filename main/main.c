@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_log.h"
 #include "nvs_flash.h"
 #include "esp_event.h"
 #include "esp_netif.h"
@@ -11,6 +12,8 @@
 #define WIFI_PASSWORD               CONFIG_WIFI_PASSWORD
 #define WIFI_MAX_RETRY_ATTEMPTS     CONFIG_WIFI_MAX_RETRY_ATTEMPTS
 
+static const char* TAG_WIFI = "WiFi Module";
+
 static int wifi_retries = 0;
 
 void on_wifi_event(void* arg, esp_event_base_t base, int32_t id, void* event_data)
@@ -18,19 +21,19 @@ void on_wifi_event(void* arg, esp_event_base_t base, int32_t id, void* event_dat
     switch(id)
     {
         case WIFI_EVENT_STA_START:
-            printf("wiFi connecting...\n");
+            ESP_LOGI(TAG_WIFI, "Connecting...");
             esp_wifi_connect();
             break;
         case WIFI_EVENT_STA_DISCONNECTED:
             if(wifi_retries < WIFI_MAX_RETRY_ATTEMPTS)
             {
-                printf("WiFi connection failed, retrying (attempt %d)...\n", ++wifi_retries);
+                ESP_LOGW(TAG_WIFI, "WiFi connection failed, retrying (attempt %d)...", ++wifi_retries);
                 esp_wifi_connect();
             }
             //TODO improve, maybe use event groups or semaphores
             else
             {
-                printf("Could not connect to WiFi!\n");
+                ESP_LOGE(TAG_WIFI, "Could not connect to WiFi!");
                 fflush(stdout);
                 esp_restart();
             }
@@ -44,7 +47,7 @@ void on_ip_event(void* arg, esp_event_base_t base, int32_t id, void* event_data)
     {
         case IP_EVENT_STA_GOT_IP:
             wifi_retries = 0;
-            printf("WiFi Connected!\n");
+            ESP_LOGI(TAG_WIFI, "Connected");
             break;
     }
 }
