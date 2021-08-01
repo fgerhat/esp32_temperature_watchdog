@@ -5,5 +5,13 @@
     "idf.customExtraVars": "{\"OPENOCD_SCRIPTS\":\"C:\\\\.espressif\\\\tools\\\\openocd-esp32\\\\v0.10.0-esp32-20210401/openocd-esp32/share/openocd/scripts\",\"IDF_CCACHE_ENABLE\":\"1\"}",
     "idf.espIdfPathWin": "C:/esp/esp-idf/",
     "idf.pythonBinPathWin": "C:/.espressif/python_env/idf4.3_py3.8_env/Scripts/python.exe",
-    "idf.toolsPathWin": "C:\\.espressif"
+    "idf.toolsPathWin": "C:\\.espressif",
+    "files.associations": {
+        "nvs_flash.h": "c",
+        "comp_wifi.h": "c",
+        "esp_log.h": "c",
+        "task.h": "c",
+        "event_groups.h": "c",
+        "mqtt_client.h": "c"
+    }
 }

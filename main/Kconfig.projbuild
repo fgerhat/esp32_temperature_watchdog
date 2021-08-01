@@ -1,29 +1,4 @@
-menu "Wi-Fi Configuration"
-
-    config WIFI_SSID
-        string "Wi-Fi SSID"
-
-    config WIFI_PASSWORD
-        string "Wi-Fi Password"
-
-    config WIFI_MAX_RETRY_ATTEMPTS
-        int "Maximum connection retry attempts"
-        default 3
-        range 0 999
-
-endmenu
-
-menu "MQTT Configuration"
-
-    config MQTT_BROKER_URL
-        string "Broker URL"
-        default "maqiatto.com"
-
-    config MQTT_USERNAME
-        string "Username"
-
-    config MQTT_PASSWORD
-        string "Password"
+menu "Application Configuration"
 
     config MQTT_TOPIC
         string "MQTT Topic"
