@@ -17,9 +17,17 @@
 esp_err_t err;
 #define RETURN_ON_ERROR(expr) if((err = (expr)) != ESP_OK) {return err;}
 
+typedef enum wifi_state
+{
+    WIFI_CONNECTED_STATE,
+    WIFI_DISCONNECTED_STATE
+} WifiState;
+
 static const char* TAG = "WiFi Module";
 static EventGroupHandle_t event_group_wifi;
 static int wifi_retries = 0;
+static WifiState wifi_desired_state = WIFI_DISCONNECTED_STATE;
+static WifiState wifi_actual_state = WIFI_DISCONNECTED_STATE;
 
 void on_wifi_event(void* arg, esp_event_base_t base, int32_t id, void* event_data)
 {
@@ -30,6 +38,14 @@ void on_wifi_event(void* arg, esp_event_base_t base, int32_t id, void* event_dat
             esp_wifi_connect();
             break;
         case WIFI_EVENT_STA_DISCONNECTED:
+            wifi_actual_state = WIFI_DISCONNECTED_STATE;
+
+            if(wifi_desired_state == WIFI_DISCONNECTED_STATE)
+            {
+                ESP_LOGI(TAG, "Successfully disconected");
+                break;
+            }
+
             if(wifi_retries < WIFI_MAX_RETRY_ATTEMPTS)
             {
                 ESP_LOGW(TAG, "WiFi connection failed, retrying (attempt %d)...", ++wifi_retries);
@@ -49,6 +65,8 @@ void on_ip_event(void* arg, esp_event_base_t base, int32_t id, void* event_data)
     switch(id)
     {
         case IP_EVENT_STA_GOT_IP:
+            wifi_actual_state = WIFI_CONNECTED_STATE;
+
             wifi_retries = 0;
             ESP_LOGI(TAG, "Connected");
             xEventGroupSetBits(event_group_wifi, WIFI_CONNECTED_BIT);
@@ -108,6 +126,8 @@ esp_err_t wifi_init()
 
 esp_err_t wifi_connect()
 {
+    wifi_desired_state = WIFI_CONNECTED_STATE;
+
     //start wifi driver
     RETURN_ON_ERROR(esp_wifi_start());
 
@@ -122,6 +142,7 @@ esp_err_t wifi_connect()
     if(event_bits_wifi & WIFI_FAIL_BIT)
     {
         ESP_LOGE(TAG, "No WiFi connection");
+        wifi_desired_state = WIFI_DISCONNECTED_STATE;
         return ESP_FAIL;
     }
     else if(event_bits_wifi & WIFI_CONNECTED_BIT)
@@ -131,8 +152,35 @@ esp_err_t wifi_connect()
     else
     {
         ESP_LOGE(TAG, "Unknown error related to WiFi module event bits");
+        wifi_desired_state = WIFI_DISCONNECTED_STATE;
         return ESP_FAIL;
     }
 
     return ESP_OK;
+}
+
+esp_err_t wifi_disconnect()
+{
+    wifi_desired_state = WIFI_DISCONNECTED_STATE;
+
+    RETURN_ON_ERROR(esp_wifi_disconnect());
+
+    return ESP_OK;
+}
+
+esp_err_t wifi_stop()
+{
+    if(wifi_desired_state != WIFI_DISCONNECTED_STATE)
+    {
+        RETURN_ON_ERROR(wifi_disconnect());
+    }
+
+    RETURN_ON_ERROR(wifi_stop());
+
+    return ESP_OK;
+}
+
+int wifi_is_connected()
+{
+    return (wifi_actual_state == WIFI_CONNECTED_STATE) ? 1 : 0;
 }
