@@ -12,6 +12,17 @@ static int mqtt_message_number = 0;
 
 static const char* TAG = "Main Application Module";
 
+void countdown_and_abort(unsigned int seconds)
+{
+    for( ; seconds > 0; --seconds)
+    {
+        ESP_LOGI(TAG, "Restarting in %d seconds...", seconds);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+
+    abort();
+}
+
 void app_main()
 {
     //initialize NVS
@@ -23,16 +34,16 @@ void app_main()
     ESP_ERROR_CHECK(ret);
 
     //initialize WiFi
-    wifi_init();
+    ESP_ERROR_CHECK(wifi_init());
 
     //connect to WiFi
-    wifi_connect();
+    ESP_ERROR_CHECK(wifi_connect());
 
     //initialize MQTT
-    mqtt_init();
+    ESP_ERROR_CHECK(mqtt_init());
 
     //start MQTT client
-    mqtt_start();
+    ESP_ERROR_CHECK(mqtt_start());
 
     while(1)
     {
@@ -42,14 +53,13 @@ void app_main()
         if(length <= 0)
         {
             ESP_LOGE(TAG, "Error creating MQTT message payload");
-            vTaskDelay(5000 / portTICK_PERIOD_MS);
-            abort();
+            countdown_and_abort(10);
         }
         ++length;
 
         ESP_LOGI(TAG, "Sending MQTT message \"%s\"", buffer);
 
-        mqtt_publish(CONFIG_MQTT_TOPIC, buffer, length, 1);
+        ESP_ERROR_CHECK(mqtt_publish(CONFIG_MQTT_TOPIC, buffer, length, 1));
 
         vTaskDelay(10000 / portTICK_PERIOD_MS);
     }

@@ -14,6 +14,9 @@
 #define WIFI_CONNECTED_BIT          BIT0
 #define WIFI_FAIL_BIT               BIT1
 
+esp_err_t err;
+#define RETURN_ON_ERROR(expr) if((err = (expr)) != ESP_OK) {return err;}
+
 static const char* TAG = "WiFi Module";
 static EventGroupHandle_t event_group_wifi;
 static int wifi_retries = 0;
@@ -61,40 +64,39 @@ esp_err_t wifi_init()
     if(event_group_wifi == NULL)
     {
         ESP_LOGE(TAG, "Error creating WiFi event group");
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
-        abort();
+        return ESP_FAIL;
     }
 
     //initialize NETIF
-    ESP_ERROR_CHECK(esp_netif_init());
+    RETURN_ON_ERROR(esp_netif_init());
     //create default event loop
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    RETURN_ON_ERROR(esp_event_loop_create_default());
     //create default wifi station
     esp_netif_create_default_wifi_sta();
     //initialize default WiFi driver
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    RETURN_ON_ERROR(esp_wifi_init(&cfg));
 
     //wifi configuration
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    RETURN_ON_ERROR(esp_wifi_set_mode(WIFI_MODE_STA));
     wifi_config_t conf = {
         .sta = {
             .ssid = WIFI_SSID,
             .password = WIFI_PASSWORD   
         }
     };
-    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &conf));
+    RETURN_ON_ERROR(esp_wifi_set_config(ESP_IF_WIFI_STA, &conf));
 
     //register wifi and ip event handlers
     esp_event_handler_instance_t instance_wifi_handler;
     esp_event_handler_instance_t instance_ip_handler;
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(
+    RETURN_ON_ERROR(esp_event_handler_instance_register(
         WIFI_EVENT, 
         ESP_EVENT_ANY_ID, 
         &on_wifi_event, 
         NULL, 
         &instance_wifi_handler));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(
+    RETURN_ON_ERROR(esp_event_handler_instance_register(
         IP_EVENT, 
         ESP_EVENT_ANY_ID, 
         &on_ip_event, 
@@ -107,7 +109,7 @@ esp_err_t wifi_init()
 esp_err_t wifi_connect()
 {
     //start wifi driver
-    ESP_ERROR_CHECK(esp_wifi_start());
+    RETURN_ON_ERROR(esp_wifi_start());
 
     //wait for wifi successful connection or failure
     EventBits_t event_bits_wifi = xEventGroupWaitBits(
@@ -120,18 +122,16 @@ esp_err_t wifi_connect()
     if(event_bits_wifi & WIFI_FAIL_BIT)
     {
         ESP_LOGE(TAG, "No WiFi connection");
-
-        for (int i = 10; i >= 0; i--) {
-            printf("Restarting in %d seconds...\n", i);
-            vTaskDelay(1000 / portTICK_PERIOD_MS);
-        }
-        printf("Restarting now.\n");
-        fflush(stdout);
-        esp_restart();
+        return ESP_FAIL;
     }
     else if(event_bits_wifi & WIFI_CONNECTED_BIT)
     {
         ESP_LOGI(TAG, "Connected to WiFi");
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Unknown error related to WiFi module event bits");
+        return ESP_FAIL;
     }
 
     return ESP_OK;

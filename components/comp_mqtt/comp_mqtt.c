@@ -12,6 +12,9 @@
 
 #define MQTT_CONNECTED_BIT          BIT0
 
+esp_err_t err;
+#define RETURN_ON_ERROR(expr) if((err = (expr)) != ESP_OK) {return err;}
+
 static const char* TAG = "MQTT Module";
 static EventGroupHandle_t event_group_mqtt;
 static esp_mqtt_client_handle_t mqtt_handle;
@@ -34,8 +37,7 @@ esp_err_t mqtt_init()
     if(event_group_mqtt == NULL)
     {
         ESP_LOGE(TAG, "Error creating MQTT event group");
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
-        abort();
+        return ESP_FAIL;
     }
 
     //configure MQTT client
@@ -50,13 +52,12 @@ esp_err_t mqtt_init()
     if(mqtt_handle == NULL)
     {
         ESP_LOGE(TAG, "Error initializing MQTT client");
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
-        abort();
+        return ESP_FAIL;
     }
     ESP_LOGI(TAG, "Client initialized");
 
     //register MQTT event handler
-    ESP_ERROR_CHECK(esp_mqtt_client_register_event(mqtt_handle, ESP_EVENT_ANY_ID, on_mqtt_event, NULL));
+    RETURN_ON_ERROR(esp_mqtt_client_register_event(mqtt_handle, ESP_EVENT_ANY_ID, on_mqtt_event, NULL));
 
     return ESP_OK;
 }
@@ -64,7 +65,7 @@ esp_err_t mqtt_init()
 esp_err_t mqtt_start()
 {
     //start MQTT client
-    ESP_ERROR_CHECK(esp_mqtt_client_start(mqtt_handle));
+    RETURN_ON_ERROR(esp_mqtt_client_start(mqtt_handle));
     ESP_LOGI(TAG, "Client started");
 
     //wait for MQTT connection to broker
@@ -80,7 +81,7 @@ esp_err_t mqtt_start()
 
 esp_err_t mqtt_publish(const char* topic, const char* message, int length, int qos)
 {
-    esp_mqtt_client_publish(
+    int message_id = esp_mqtt_client_publish(
         mqtt_handle,
         topic,
         message,
@@ -88,6 +89,11 @@ esp_err_t mqtt_publish(const char* topic, const char* message, int length, int q
         qos,
         0
     );
+
+    if(message_id < 0)
+    {
+        return ESP_FAIL;
+    }
 
     return ESP_OK;
 }
