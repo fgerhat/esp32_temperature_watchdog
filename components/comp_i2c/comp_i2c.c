@@ -6,9 +6,9 @@
 esp_err_t err;
 #define RETURN_ON_ERROR(expr) if((err = (expr)) != ESP_OK) {return err;}
 
-const i2c_port_t i2c_port = I2C_NUM_0;
-const char* TAG = "I2C Module";
-const int i2c_clock_speed = CONFIG_I2C_CLOCK_SPEED * 1000; //convert from kHz in menuconfig to Hz
+static const i2c_port_t i2c_port = I2C_NUM_0;
+static const char* TAG = "I2C Module";
+static const int i2c_clock_speed = CONFIG_I2C_CLOCK_SPEED * 1000; //convert from kHz in menuconfig to Hz
 
 esp_err_t i2c_init()
 {

@@ -12,6 +12,21 @@
         "esp_log.h": "c",
         "task.h": "c",
         "event_groups.h": "c",
-        "mqtt_client.h": "c"
+        "mqtt_client.h": "c",
+        "array": "c",
+        "*.tcc": "c",
+        "string": "c",
+        "vector": "c",
+        "string_view": "c",
+        "functional": "c",
+        "iomanip": "c",
+        "istream": "c",
+        "limits": "c",
+        "ostream": "c",
+        "ratio": "c",
+        "sstream": "c",
+        "streambuf": "c",
+        "*.ipp": "c",
+        "*.inc": "c"
     }
 }
