@@ -1,0 +1,18 @@
+menu "I2C Configuration"
+
+    config I2C_SDA_PIN
+        int "Data pin number (SDA)"
+        range 0 40
+        default 21
+
+    config I2C_SCL_PIN
+        int "Clock pin number (SCL)"
+        range 0 40
+        default 22
+
+    config I2C_CLOCK_SPEED
+        int "Clock speed [kHz]"
+        range 1 1000
+        default 100
+
+endmenu
