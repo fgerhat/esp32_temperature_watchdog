@@ -10,9 +10,18 @@ menu "I2C Configuration"
         range 0 40
         default 22
 
+    choice I2C_CLOCK_SPEED
+        prompt "I2C Clock Speed"
+        default I2C_CLOCK_SPEED_100K
+        config I2C_CLOCK_SPEED_100K
+            bool "100 kHz"
+        config I2C_CLOCK_SPEED_400K
+            bool "400 kHz"
+    endchoice
+
     config I2C_CLOCK_SPEED
-        int "Clock speed [kHz]"
-        range 1 1000
-        default 100
+        int
+        default 100 if I2C_CLOCK_SPEED_100K
+        default 400 if I2C_CLOCK_SPEED_400K
 
 endmenu
