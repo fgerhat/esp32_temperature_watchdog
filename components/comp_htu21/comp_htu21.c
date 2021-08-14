@@ -68,14 +68,18 @@ esp_err_t htu21_read_data(uint8_t* data_buf)
     return ESP_OK;
 }
 
-esp_err_t htu21_soft_reset()
+esp_err_t htu21_soft_reset(short wait_for_reset)
 {
     const int reset_time_ms = 15;
 
     RETURN_ON_ERROR(htu21_send_command(CMD_SOFT_RESET));    
     ESP_LOGI(TAG, "Sent soft reset command");
-    vTaskDelay(reset_time_ms/portTICK_PERIOD_MS); //HTU21 soft reset should take no more than 15ms
 
+    if(wait_for_reset)
+    {
+        vTaskDelay(reset_time_ms/portTICK_PERIOD_MS); //HTU21 soft reset should take no more than 15ms
+    }
+    
     return ESP_OK;
 }
 

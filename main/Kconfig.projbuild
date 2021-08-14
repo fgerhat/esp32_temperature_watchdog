@@ -1,8 +1,10 @@
 menu "Application Configuration"
 
-    config MQTT_TOPIC
-        string "MQTT Topic"
+    config WAKEUP_PERIOD_MINUTES
+        int "Wake-up period [minutes]"
+        range 1 60
+        default 10
         help
-            Topic to which test messages will get posted by the ESP32
+            Time interval between wake-ups of the device.
 
 endmenu
