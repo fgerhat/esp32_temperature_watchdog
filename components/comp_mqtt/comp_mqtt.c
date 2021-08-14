@@ -87,13 +87,16 @@ esp_err_t mqtt_publish(const char* topic, const char* message, int length, int q
         message,
         length,
         qos,
-        0
+        1
     );
 
     if(message_id < 0)
     {
+        ESP_LOGE(TAG, "Failed publishing \"%s\" to \"%s\"", message, topic);
         return ESP_FAIL;
     }
+
+    ESP_LOGI(TAG, "Published \"%s\" to \"%s\"", message, topic);
 
     return ESP_OK;
 }
