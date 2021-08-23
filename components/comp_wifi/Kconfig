@@ -5,39 +5,12 @@ menu "Wi-Fi Configuration"
         default 3
         range 0 255
 
-    menu "Main WiFi Configuration"
-        config WIFI_0_SSID
+    menu "Default WiFi Configuration"
+        config WIFI_SSID
             string "SSID"
 
-        config WIFI_0_PASSWORD
+        config WIFI_PASSWORD
             string "Password"
     endmenu
-
-    config WIFI_ENABLE_ALT_1
-        bool "Enable alternate WiFi 1"
-        default false
-
-    menu "Alternate WiFi 1 Configuration"
-        depends on WIFI_ENABLE_ALT_1
-
-        config WIFI_1_SSID
-            string "SSID"
-        config WIFI_1_PASSWORD
-            string "Password"
-    endmenu
-
-    config WIFI_ENABLE_ALT_2
-        depends on WIFI_ENABLE_ALT_1
-        bool "Enable alternate WiFi 2"
-
-    menu "Alternate WiFi 2 Configuration"
-        depends on WIFI_ENABLE_ALT_2
-
-        config WIFI_2_SSID
-            string "SSID"
-        config WIFI_2_PASSWORD
-            string "Password"
-    endmenu
-
 
 endmenu
