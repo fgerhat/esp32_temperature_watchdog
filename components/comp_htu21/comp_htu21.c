@@ -18,6 +18,7 @@ esp_err_t err;
 #define CMD_READ_USER_REG 0xE7
 
 static const i2c_port_t i2c_port = I2C_NUM_0;
+static const uint8_t htu21_addr = HTU21_ADDRESS << 1;
 static const char* TAG = "HTU21 Module";
 
 // perform a CRC check of the message
@@ -43,10 +44,10 @@ uint32_t crc_check(uint32_t message)
 esp_err_t htu21_send_command(uint8_t command)
 {
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    RETURN_ON_ERROR(i2c_master_start(cmd));                                                     // START bit
-    RETURN_ON_ERROR(i2c_master_write_byte(cmd, (HTU21_ADDRESS << 1) | I2C_MASTER_WRITE, 1));    // I2C address + write bit
-    RETURN_ON_ERROR(i2c_master_write_byte(cmd, command, 1));                                    // command byte
-    RETURN_ON_ERROR(i2c_master_stop(cmd));                                                      // STOP bit
+    RETURN_ON_ERROR(i2c_master_start(cmd));                                             // START bit
+    RETURN_ON_ERROR(i2c_master_write_byte(cmd, htu21_addr | I2C_MASTER_WRITE, 1));      // I2C address + write bit
+    RETURN_ON_ERROR(i2c_master_write_byte(cmd, command, 1));                            // command byte
+    RETURN_ON_ERROR(i2c_master_stop(cmd));                                              // STOP bit
 
     RETURN_ON_ERROR(i2c_master_cmd_begin(i2c_port, cmd, 1000/portTICK_PERIOD_MS));
     i2c_cmd_link_delete(cmd);
@@ -54,16 +55,54 @@ esp_err_t htu21_send_command(uint8_t command)
     return ESP_OK;
 }
 
-esp_err_t htu21_read_data(uint8_t* data_buf)
+esp_err_t htu21_read_data(uint32_t* data, int measurement_time_ms)
 {
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    RETURN_ON_ERROR(i2c_master_start(cmd));                                                     // START bit
-    RETURN_ON_ERROR(i2c_master_write_byte(cmd, (HTU21_ADDRESS << 1) | I2C_MASTER_READ, 1));     // I2C address + read bit
-    RETURN_ON_ERROR(i2c_master_read(cmd, data_buf, 3, I2C_MASTER_LAST_NACK));                   // read 3 bytes of data
-    RETURN_ON_ERROR(i2c_master_stop(cmd));                                                      // STOP bit
+    esp_err_t err;
+    uint8_t data_buf[3];
 
-    RETURN_ON_ERROR(i2c_master_cmd_begin(i2c_port, cmd, 1000/portTICK_PERIOD_MS));
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    RETURN_ON_ERROR(i2c_master_start(cmd));                                             // START bit
+    RETURN_ON_ERROR(i2c_master_write_byte(cmd, htu21_addr | I2C_MASTER_READ, 1));       // I2C address + read bit
+    RETURN_ON_ERROR(i2c_master_read(cmd, data_buf, 3, I2C_MASTER_LAST_NACK));           // read 3 bytes of data
+    RETURN_ON_ERROR(i2c_master_stop(cmd));                                              // STOP bit
+
+    for(int i = 0; i < CONFIG_HTU21_MAX_RETRIES_MEASUREMENT; ++i)
+    {
+        //wait for measurement to finish
+        if(measurement_time_ms > 0) 
+        {
+            vTaskDelay(measurement_time_ms/portTICK_PERIOD_MS);
+        }
+
+        //try reading the result
+        err = i2c_master_cmd_begin(i2c_port, cmd, 1000/portTICK_PERIOD_MS);
+
+        //success, no more retries necessary
+        if(err == ESP_OK) break; 
+
+        //ESP_FAIL occurs when slave doesn't ACK
+        //HTU21 responds with NACK if measurement is not finished
+        //any other error should be returned
+        if(err != ESP_FAIL)
+        {
+            i2c_cmd_link_delete(cmd);
+            return err;
+        }
+
+        ESP_LOGW(TAG, "Received NACK response, retrying... (%d/%d)", i+1, CONFIG_HTU21_MAX_RETRIES_MEASUREMENT);
+    }
+    if(err != ESP_OK) return err;
     i2c_cmd_link_delete(cmd);
+
+    *data = (data_buf[0] << 16) | (data_buf[1] << 8) | data_buf[2];
+
+    //CRC check
+    uint32_t crc_result = crc_check(*data);
+    if(crc_result)
+    {
+        ESP_LOGW(TAG, "CRC check failed (0x%X)", crc_result);
+        return ESP_ERR_INVALID_CRC;
+    }
 
     return ESP_OK;
 }
@@ -86,25 +125,20 @@ esp_err_t htu21_soft_reset(short wait_for_reset)
 esp_err_t htu21_get_temperature(float* temperature)
 {
     const int measurement_time_ms = 50;
+    uint32_t data;
+    esp_err_t err;
 
-    RETURN_ON_ERROR(htu21_send_command(CMD_MEASURE_TEMP_NOHOLD));
-
-    // wait for measurement to finish
-    vTaskDelay(measurement_time_ms/portTICK_PERIOD_MS);
-
-    uint8_t data_buf[3];
-    RETURN_ON_ERROR(htu21_read_data(data_buf));
-    ESP_LOGD(TAG, "Successfully read temperature data");
-
-    uint32_t data = (data_buf[0] << 16) | (data_buf[1] << 8) | data_buf[2];
-
-    //CRC check
-    uint32_t crc_result = crc_check(data);
-    if(crc_result)
+    for(int i = 0; i < CONFIG_HTU21_MAX_RETRIES_CRC; ++i)
     {
-        ESP_LOGE(TAG, "CRC check failed (0x%X)", crc_result);
-        return ESP_FAIL;
+        RETURN_ON_ERROR(htu21_send_command(CMD_MEASURE_TEMP_NOHOLD));
+        err = htu21_read_data(&data, measurement_time_ms);
+
+        if(err == ESP_OK) break;
+        if(err != ESP_ERR_INVALID_CRC) return err;
+
+        ESP_LOGW(TAG, "CRC check failed, retrying... (%d/%d)", i+1, CONFIG_HTU21_MAX_RETRIES_CRC);
     }
+    if(err != ESP_OK) return err;
 
     uint16_t signal_temp = (data >> 8) & (~0b11);
     uint8_t status_bits = (data >> 8) & 0b11;
@@ -124,25 +158,20 @@ esp_err_t htu21_get_temperature(float* temperature)
 esp_err_t htu21_get_humidity(float* humidity)
 {
     const int measurement_time_ms = 20;
+    uint32_t data;
+    esp_err_t err;
 
-    RETURN_ON_ERROR(htu21_send_command(CMD_MEASURE_HUM_NOHOLD));
-
-    // wait for measurement to finish
-    vTaskDelay(measurement_time_ms/portTICK_PERIOD_MS);
-
-    uint8_t data_buf[3];
-    RETURN_ON_ERROR(htu21_read_data(data_buf));
-    ESP_LOGD(TAG, "Successfully read humidity data");
-
-    uint32_t data = (data_buf[0] << 16) | (data_buf[1] << 8) | data_buf[2];
-
-    //CRC check
-    uint32_t crc_result = crc_check(data);
-    if(crc_result)
+    for(int i = 0; i < CONFIG_HTU21_MAX_RETRIES_CRC; ++i)
     {
-        ESP_LOGE(TAG, "CRC check failed (0x%X)", crc_result);
-        return ESP_FAIL;
+        RETURN_ON_ERROR(htu21_send_command(CMD_MEASURE_HUM_NOHOLD));
+        err = htu21_read_data(&data, measurement_time_ms);
+
+        if(err == ESP_OK) break;
+        if(err != ESP_ERR_INVALID_CRC) return err;
+
+        ESP_LOGW(TAG, "CRC check failed, retrying... (%d/%d)", i+1, CONFIG_HTU21_MAX_RETRIES_CRC);
     }
+    if(err != ESP_OK) return err;
 
     uint16_t signal_humidity = (data >> 8) & (~0b11);
     uint8_t status_bits = (data >> 8) & 0b11;

@@ -76,7 +76,7 @@ short app_init_i2c_htu()
         return 0;
     }
 
-    ret = htu21_soft_reset(0);
+    ret = htu21_soft_reset(1);
     if(ret != ESP_OK)
     {
         ESP_LOGE(TAG, "Error sending soft reset command to HTU21");

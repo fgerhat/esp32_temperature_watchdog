@@ -1,0 +1,13 @@
+menu "HTU21 Configuration"
+
+    config HTU21_MAX_RETRIES_MEASUREMENT
+        int "Maximum retry attempts when measurement is not done yet"
+        range 1 10
+        default 3
+
+    config HTU21_MAX_RETRIES_CRC
+        int "Maximum retry attempts when a CRC error occurs"
+        range 1 10
+        default 2
+
+endmenu
