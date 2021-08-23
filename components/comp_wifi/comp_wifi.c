@@ -175,7 +175,7 @@ esp_err_t wifi_stop()
         RETURN_ON_ERROR(wifi_disconnect());
     }
 
-    RETURN_ON_ERROR(esp_wifi_stop());
+    RETURN_ON_ERROR(wifi_stop());
 
     return ESP_OK;
 }
