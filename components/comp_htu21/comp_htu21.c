@@ -43,28 +43,50 @@ uint32_t crc_check(uint32_t message)
 
 esp_err_t htu21_send_command(uint8_t command)
 {
+    esp_err_t err = ESP_OK;
+
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    RETURN_ON_ERROR(i2c_master_start(cmd));                                             // START bit
-    RETURN_ON_ERROR(i2c_master_write_byte(cmd, htu21_addr | I2C_MASTER_WRITE, 1));      // I2C address + write bit
-    RETURN_ON_ERROR(i2c_master_write_byte(cmd, command, 1));                            // command byte
-    RETURN_ON_ERROR(i2c_master_stop(cmd));                                              // STOP bit
+    err |= i2c_master_start(cmd);                                             // START bit
+    err |= i2c_master_write_byte(cmd, htu21_addr | I2C_MASTER_WRITE, 1);      // I2C address + write bit
+    err |= i2c_master_write_byte(cmd, command, 1);                            // command byte
+    err |= i2c_master_stop(cmd);                                              // STOP bit
 
-    RETURN_ON_ERROR(i2c_master_cmd_begin(i2c_port, cmd, 1000/portTICK_PERIOD_MS));
+    if(err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "%s: Error assembling I2C command link for sending command 0x%X", esp_err_to_name(err), command);
+        i2c_cmd_link_delete(cmd);
+        return err;
+    }
+
+    err = i2c_master_cmd_begin(i2c_port, cmd, 1000/portTICK_PERIOD_MS);
+    if(err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "%s: Error sending command over I2C", esp_err_to_name(err));
+        i2c_cmd_link_delete(cmd);
+        return err;
+    }
+
     i2c_cmd_link_delete(cmd);
-
     return ESP_OK;
 }
 
 esp_err_t htu21_read_data(uint32_t* data, int measurement_time_ms)
 {
-    esp_err_t err;
+    esp_err_t err = ESP_OK;
     uint8_t data_buf[3];
 
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    RETURN_ON_ERROR(i2c_master_start(cmd));                                             // START bit
-    RETURN_ON_ERROR(i2c_master_write_byte(cmd, htu21_addr | I2C_MASTER_READ, 1));       // I2C address + read bit
-    RETURN_ON_ERROR(i2c_master_read(cmd, data_buf, 3, I2C_MASTER_LAST_NACK));           // read 3 bytes of data
-    RETURN_ON_ERROR(i2c_master_stop(cmd));                                              // STOP bit
+    err |= i2c_master_start(cmd);                                             // START bit
+    err |= i2c_master_write_byte(cmd, htu21_addr | I2C_MASTER_READ, 1);       // I2C address + read bit
+    err |= i2c_master_read(cmd, data_buf, 3, I2C_MASTER_LAST_NACK);           // read 3 bytes of data
+    err |= i2c_master_stop(cmd);                                              // STOP bit
+
+    if(err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "%s: Error assembling I2C command link for reading data", esp_err_to_name(err));
+        i2c_cmd_link_delete(cmd);
+        return err;
+    }
 
     for(int i = 0; i < CONFIG_HTU21_MAX_RETRIES_MEASUREMENT; ++i)
     {
@@ -91,7 +113,13 @@ esp_err_t htu21_read_data(uint32_t* data, int measurement_time_ms)
 
         ESP_LOGW(TAG, "Received NACK response, retrying... (%d/%d)", i+1, CONFIG_HTU21_MAX_RETRIES_MEASUREMENT);
     }
-    if(err != ESP_OK) return err;
+    if(err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "%s: Error reading data over I2C", esp_err_to_name(err));
+        i2c_cmd_link_delete(cmd);
+        return err;
+    }
+
     i2c_cmd_link_delete(cmd);
 
     *data = (data_buf[0] << 16) | (data_buf[1] << 8) | data_buf[2];
